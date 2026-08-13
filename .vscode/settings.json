@@ -1,0 +1,10 @@
+{
+  "python.extraPaths": [
+    "${workspaceFolder}/backend/.venv/Lib/site-packages",
+    "${workspaceFolder}/bot/.venv/Lib/site-packages"
+  ],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend/.venv/Lib/site-packages",
+    "${workspaceFolder}/bot/.venv/Lib/site-packages"
+  ]
+}

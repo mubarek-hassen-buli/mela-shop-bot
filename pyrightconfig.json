@@ -1,0 +1,6 @@
+{
+  "extraPaths": [
+    "c:/projects/mela-shop/backend/.venv/Lib/site-packages",
+    "c:/projects/mela-shop/bot/.venv/Lib/site-packages"
+  ]
+}
