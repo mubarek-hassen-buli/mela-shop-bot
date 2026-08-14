@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.product import ProductVariantResponse, ProductResponse
+from app.schemas.product import ProductVariantResponse, ProductMinimalResponse
 
 
 class CartItemAddRequest(BaseModel):
@@ -22,7 +22,7 @@ class CartItemResponse(BaseModel):
     quantity: int
     updated_at: datetime
     variant: Optional[ProductVariantResponse] = None
-    product: Optional[ProductResponse] = None
+    product: Optional[ProductMinimalResponse] = None
     item_subtotal: Decimal
 
     model_config = ConfigDict(from_attributes=True)

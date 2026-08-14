@@ -114,13 +114,19 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class ProductResponse(ProductBase):
+class ProductMinimalResponse(ProductBase):
     id: int
     created_at: datetime
     category: Optional[CategoryMinimalResponse] = None
     brand: Optional[BrandResponse] = None
-    variants: List[ProductVariantResponse] = []
     images: List[ProductImageResponse] = []
     specifications: List[ProductSpecResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductResponse(ProductMinimalResponse):
+    variants: List[ProductVariantResponse] = []
+
+    model_config = ConfigDict(from_attributes=True)
+

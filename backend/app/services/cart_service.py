@@ -16,7 +16,10 @@ async def get_user_cart(db: AsyncSession, user_id: int) -> Dict[str, Any]:
         .where(CartItem.user_id == user_id)
         .options(
             selectinload(CartItem.variant).selectinload(ProductVariant.color),
-            selectinload(CartItem.variant).selectinload(ProductVariant.product).selectinload(Product.images)
+            selectinload(CartItem.variant).selectinload(ProductVariant.product).selectinload(Product.category),
+            selectinload(CartItem.variant).selectinload(ProductVariant.product).selectinload(Product.brand),
+            selectinload(CartItem.variant).selectinload(ProductVariant.product).selectinload(Product.images),
+            selectinload(CartItem.variant).selectinload(ProductVariant.product).selectinload(Product.specifications)
         )
     )
     result = await db.execute(stmt)
