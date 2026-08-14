@@ -112,6 +112,9 @@ class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
     brand_id: Optional[int] = None
     is_active: Optional[bool] = None
+    variants: Optional[List[ProductVariantCreate]] = None
+    images: Optional[List[ProductImageCreate]] = None
+    specifications: Optional[List[ProductSpecCreate]] = None
 
 
 class ProductMinimalResponse(ProductBase):

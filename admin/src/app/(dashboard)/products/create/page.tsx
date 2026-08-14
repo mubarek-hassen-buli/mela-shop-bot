@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Trash2, Check, Loader2 } from 'lucide-react';
 import { productService } from '../../../../services/productService';
 import { categoryBrandService } from '../../../../services/categoryBrandService';
@@ -11,6 +11,7 @@ import { UploadMediaResponse } from '../../../../services/mediaService';
 
 export default function CreateProductPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
@@ -50,6 +51,9 @@ export default function CreateProductPage() {
   const createMutation = useMutation({
     mutationFn: productService.createProduct,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       router.push('/products');
     },
     onError: (err: any) => {

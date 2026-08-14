@@ -1,13 +1,14 @@
 from typing import Optional, List
 from math import ceil
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.core.exceptions import NotFoundException, ConflictException
+from app.core.events import event_manager
 from app.models.admin import Admin
 from app.models.product import Product
 from app.models.product_variant import Color, ProductVariant, ProductSpecification
@@ -166,6 +167,8 @@ async def create_product(
     )
     product_full = (await db.execute(refetch_stmt)).scalar_one()
 
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "product", "action": "create", "id": product.id})
+
     return ProductResponse.model_validate(product_full)
 
 
@@ -202,8 +205,32 @@ async def update_product(
         raise NotFoundException("Product not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+    
+    # Extract nested collections if provided
+    variants_data = update_data.pop("variants", None)
+    images_data = update_data.pop("images", None)
+    specs_data = update_data.pop("specifications", None)
+
     for field, val in update_data.items():
         setattr(product, field, val)
+
+    # Sync variants if supplied
+    if variants_data is not None:
+        await db.execute(delete(ProductVariant).where(ProductVariant.product_id == product_id))
+        for var in variants_data:
+            db.add(ProductVariant(product_id=product_id, **var))
+
+    # Sync images if supplied
+    if images_data is not None:
+        await db.execute(delete(ProductImage).where(ProductImage.product_id == product_id))
+        for img in images_data:
+            db.add(ProductImage(product_id=product_id, **img))
+
+    # Sync specifications if supplied
+    if specs_data is not None:
+        await db.execute(delete(ProductSpecification).where(ProductSpecification.product_id == product_id))
+        for sp in specs_data:
+            db.add(ProductSpecification(product_id=product_id, **sp))
 
     await db.commit()
 
@@ -215,6 +242,39 @@ async def update_product(
         selectinload(Product.specifications)
     )
     product_full = (await db.execute(refetch_stmt)).scalar_one()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "product", "action": "update", "id": product_id})
+
+    return ProductResponse.model_validate(product_full)
+
+
+@router.patch("/{product_id}/toggle-status", response_model=ProductResponse)
+async def toggle_product_status(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin)
+):
+    stmt = select(Product).where(Product.id == product_id)
+    product = (await db.execute(stmt)).scalar_one_or_none()
+    if not product:
+        raise NotFoundException("Product not found")
+
+    product.is_active = not product.is_active
+    await db.commit()
+
+    refetch_stmt = select(Product).where(Product.id == product_id).options(
+        selectinload(Product.category),
+        selectinload(Product.brand),
+        selectinload(Product.variants).selectinload(ProductVariant.color),
+        selectinload(Product.images),
+        selectinload(Product.specifications)
+    )
+    product_full = (await db.execute(refetch_stmt)).scalar_one()
+
+    await event_manager.broadcast(
+        "CATALOG_UPDATED", 
+        {"entity": "product", "action": "toggle", "id": product_id, "is_active": product_full.is_active}
+    )
 
     return ProductResponse.model_validate(product_full)
 
@@ -232,4 +292,7 @@ async def delete_product(
 
     await db.delete(product)
     await db.commit()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "product", "action": "delete", "id": product_id})
+
     return MessageResponse(message="Product deleted successfully")

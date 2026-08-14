@@ -23,6 +23,16 @@ export const productService = {
     return data;
   },
 
+  updateProduct: async (id: number, payload: Partial<ProductCreatePayload>): Promise<Product> => {
+    const { data } = await adminApi.put<Product>(`/admin/products/${id}`, payload);
+    return data;
+  },
+
+  toggleProductStatus: async (id: number): Promise<Product> => {
+    const { data } = await adminApi.patch<Product>(`/admin/products/${id}/toggle-status`);
+    return data;
+  },
+
   deleteProduct: async (id: number): Promise<MessageResponse> => {
     const { data } = await adminApi.delete<MessageResponse>(`/admin/products/${id}`);
     return data;

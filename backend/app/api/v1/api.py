@@ -11,9 +11,13 @@ from app.api.v1.endpoints import (
     admin_customers,
     miniapp_catalog,
     miniapp_cart,
+    events,
 )
 
 api_router = APIRouter()
+
+# Realtime SSE Subscriptions
+api_router.include_router(events.router)
 
 # Telegram & Public Customer Endpoints
 api_router.include_router(tg_auth.router)

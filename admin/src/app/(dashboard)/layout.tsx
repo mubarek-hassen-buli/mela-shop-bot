@@ -4,9 +4,11 @@ import React from 'react';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Header } from '../../components/layout/Header';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
+import { useRealtimeSync } from '../../hooks/useRealtimeSync';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isLoading, admin } = useAdminAuth(true);
+  useRealtimeSync();
 
   if (isLoading && !admin) {
     return (

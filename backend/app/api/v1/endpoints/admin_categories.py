@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.core.exceptions import NotFoundException, ConflictException
+from app.core.events import event_manager
 from app.models.admin import Admin
 from app.models.category import Category
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
@@ -39,8 +40,13 @@ async def create_category(
     category = Category(**payload.model_dump())
     db.add(category)
     await db.commit()
-    await db.refresh(category)
-    return CategoryResponse.model_validate(category)
+
+    refetch_stmt = select(Category).where(Category.id == category.id).options(selectinload(Category.children))
+    category_full = (await db.execute(refetch_stmt)).scalar_one()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "category", "action": "create", "id": category.id})
+
+    return CategoryResponse.model_validate(category_full)
 
 
 @router.put("/{category_id}", response_model=CategoryResponse)
@@ -61,8 +67,12 @@ async def update_category(
         setattr(category, field, val)
 
     await db.commit()
-    await db.refresh(category)
-    return CategoryResponse.model_validate(category)
+    refetch_stmt = select(Category).where(Category.id == category.id).options(selectinload(Category.children))
+    category_full = (await db.execute(refetch_stmt)).scalar_one()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "category", "action": "update", "id": category_id})
+
+    return CategoryResponse.model_validate(category_full)
 
 
 @router.delete("/{category_id}", response_model=MessageResponse)
@@ -79,4 +89,7 @@ async def delete_category(
 
     await db.delete(category)
     await db.commit()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "category", "action": "delete", "id": category_id})
+
     return MessageResponse(message="Category deleted successfully")

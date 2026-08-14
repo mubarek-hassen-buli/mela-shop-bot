@@ -5,12 +5,14 @@ import { HomePage } from './pages/HomePage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { CartPage } from './pages/CartPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { Product } from './types/product';
 import { useTelegram } from './hooks/useTelegram';
+import { useRealtimeSync } from './hooks/useRealtimeSync';
 import { authApi } from './services/authApi';
+import { Product } from './types/product';
 
 export function App() {
   const { initData } = useTelegram();
+  useRealtimeSync();
   const [activeTab, setActiveTab] = useState<'home' | 'cart' | 'profile'>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 

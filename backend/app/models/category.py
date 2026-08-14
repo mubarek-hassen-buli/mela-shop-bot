@@ -18,7 +18,8 @@ class Category(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    parent: Mapped[Optional["Category"]] = relationship("Category", remote_side=[id], backref="children")
+    parent: Mapped[Optional["Category"]] = relationship("Category", remote_side=[id], back_populates="children")
+    children: Mapped[List["Category"]] = relationship("Category", back_populates="parent")
     products: Mapped[List["Product"]] = relationship("Product", back_populates="category")
 
     __table_args__ = (

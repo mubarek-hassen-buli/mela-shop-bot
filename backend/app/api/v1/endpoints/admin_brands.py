@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.core.exceptions import NotFoundException, ConflictException
+from app.core.events import event_manager
 from app.models.admin import Admin
 from app.models.brand import Brand
 from app.schemas.brand import BrandCreate, BrandUpdate, BrandResponse
@@ -39,6 +40,9 @@ async def create_brand(
     db.add(brand)
     await db.commit()
     await db.refresh(brand)
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "brand", "action": "create", "id": brand.id})
+
     return BrandResponse.model_validate(brand)
 
 
@@ -61,6 +65,9 @@ async def update_brand(
 
     await db.commit()
     await db.refresh(brand)
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "brand", "action": "update", "id": brand_id})
+
     return BrandResponse.model_validate(brand)
 
 
@@ -78,4 +85,7 @@ async def delete_brand(
 
     await db.delete(brand)
     await db.commit()
+
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "brand", "action": "delete", "id": brand_id})
+
     return MessageResponse(message="Brand deleted successfully")
