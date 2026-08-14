@@ -114,6 +114,12 @@ async def create_product(
     db.add(product)
     await db.flush()
 
+    # Check variant SKU uniqueness
+    for v in payload.variants:
+        sku_stmt = select(ProductVariant).where(ProductVariant.sku == v.sku)
+        if (await db.execute(sku_stmt)).scalar_one_or_none():
+            raise ConflictException(f"Variant SKU '{v.sku}' already exists. Please use a unique SKU.")
+
     # Add variants
     for v in payload.variants:
         variant = ProductVariant(

@@ -22,7 +22,7 @@ export default function CreateProductPage() {
   // Dynamic Lists
   const [variants, setVariants] = useState<
     { sku: string; size: string; price: number; stock_quantity: number; color_id?: number }[]
-  >([{ sku: 'SKU-001', size: 'M', price: 29.99, stock_quantity: 10 }]);
+  >([{ sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`, size: 'M', price: 29.99, stock_quantity: 10 }]);
 
   const [images, setImages] = useState<UploadMediaResponse[]>([]);
 
@@ -45,10 +45,16 @@ export default function CreateProductPage() {
     queryFn: productService.getColors,
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const createMutation = useMutation({
     mutationFn: productService.createProduct,
     onSuccess: () => {
       router.push('/products');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail?.message || err?.response?.data?.detail || 'Conflict: A product with this slug or SKU already exists.';
+      setError(typeof msg === 'string' ? msg : 'Conflict: Product slug or SKU already exists.');
     },
   });
 
@@ -60,7 +66,7 @@ export default function CreateProductPage() {
   const handleAddVariant = () => {
     setVariants([
       ...variants,
-      { sku: `SKU-00${variants.length + 1}`, size: 'L', price: 29.99, stock_quantity: 5 },
+      { sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`, size: 'L', price: 29.99, stock_quantity: 5 },
     ]);
   };
 
@@ -136,6 +142,12 @@ export default function CreateProductPage() {
           )}
         </button>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+          {error}
+        </div>
+      )}
 
       {/* Basic Info */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">

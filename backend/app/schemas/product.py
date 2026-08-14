@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.category import CategoryResponse
+from app.schemas.category import CategoryMinimalResponse
 from app.schemas.brand import BrandResponse
 
 
@@ -62,8 +62,8 @@ class ProductVariantBase(BaseModel):
     sku: str = Field(..., min_length=1, max_length=100)
     color_id: Optional[int] = None
     size: Optional[str] = None
-    price: Decimal = Field(..., gt=0)
-    compare_at_price: Optional[Decimal] = Field(None, ge=0)
+    price: Decimal = Field(..., gt=Decimal('0'))
+    compare_at_price: Optional[Decimal] = Field(None, ge=Decimal('0'))
     stock_quantity: int = Field(0, ge=0)
     is_active: bool = True
 
@@ -76,8 +76,8 @@ class ProductVariantUpdate(BaseModel):
     sku: Optional[str] = None
     color_id: Optional[int] = None
     size: Optional[str] = None
-    price: Optional[Decimal] = Field(None, gt=0)
-    compare_at_price: Optional[Decimal] = Field(None, ge=0)
+    price: Optional[Decimal] = Field(None, gt=Decimal('0'))
+    compare_at_price: Optional[Decimal] = Field(None, ge=Decimal('0'))
     stock_quantity: Optional[int] = Field(None, ge=0)
     is_active: Optional[bool] = None
 
@@ -117,7 +117,7 @@ class ProductUpdate(BaseModel):
 class ProductResponse(ProductBase):
     id: int
     created_at: datetime
-    category: Optional[CategoryResponse] = None
+    category: Optional[CategoryMinimalResponse] = None
     brand: Optional[BrandResponse] = None
     variants: List[ProductVariantResponse] = []
     images: List[ProductImageResponse] = []

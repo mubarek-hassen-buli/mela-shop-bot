@@ -22,8 +22,14 @@ class CategoryUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class CategoryResponse(CategoryBase):
+class CategoryMinimalResponse(CategoryBase):
     id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CategoryResponse(CategoryMinimalResponse):
     children: List["CategoryResponse"] = []
 
     model_config = ConfigDict(from_attributes=True)
+
