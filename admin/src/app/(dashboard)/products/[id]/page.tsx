@@ -8,6 +8,8 @@ import { productService } from '../../../../services/productService';
 import { categoryBrandService } from '../../../../services/categoryBrandService';
 import { CloudinaryUploader } from '../../../../components/media/CloudinaryUploader';
 import { UploadMediaResponse } from '../../../../services/mediaService';
+import { CreateColorModal } from '../../../../components/ui/CreateColorModal';
+import { Color } from '../../../../types/product';
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -30,6 +32,10 @@ export default function EditProductPage() {
   const [images, setImages] = useState<UploadMediaResponse[]>([]);
 
   const [specs, setSpecs] = useState<{ spec_key: string; spec_value: string }[]>([]);
+
+  // Color modal state
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [activeVariantIdxForColor, setActiveVariantIdxForColor] = useState<number | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -99,10 +105,10 @@ export default function EditProductPage() {
   const updateMutation = useMutation({
     mutationFn: (payload: any) => productService.updateProduct(productId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-product', productId] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['admin-product', productId], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
       router.push('/products');
     },
     onError: (err: any) => {
@@ -135,6 +141,19 @@ export default function EditProductPage() {
     setVariants((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
     );
+  };
+
+  const handleOpenColorModalForVariant = (idx: number) => {
+    setActiveVariantIdxForColor(idx);
+    setIsColorModalOpen(true);
+  };
+
+  const handleColorCreated = (newColor: Color) => {
+    if (activeVariantIdxForColor !== null && variants[activeVariantIdxForColor]) {
+      const copy = [...variants];
+      copy[activeVariantIdxForColor].color_id = newColor.id;
+      setVariants(copy);
+    }
   };
 
   // Spec Helpers
@@ -193,7 +212,7 @@ export default function EditProductPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6 max-w-5xl">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8 max-w-5xl pb-16">
       {/* Top Action Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -207,7 +226,7 @@ export default function EditProductPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Edit Product</h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Update catalog details, variants, specifications, and media
+              Update catalog details, color variants, specifications, and media
             </p>
           </div>
         </div>
@@ -301,7 +320,7 @@ export default function EditProductPage() {
             <button
               type="button"
               onClick={() => setIsActive(!isActive)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center justify-center gap-2 ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-colors flex items-center justify-center gap-2 ${
                 isActive
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -352,105 +371,151 @@ export default function EditProductPage() {
         )}
       </div>
 
-      {/* Variants Table Builder */}
+      {/* Variants & Colors Builder */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-            Variants & Stock Configuration
-          </h3>
+          <div>
+            <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Variants, Colors & Stock Configuration
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Add multiple color variants, sizes, and inventory levels
+            </p>
+          </div>
           <button
             type="button"
             onClick={addVariant}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1 transition-colors"
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Add Variant
           </button>
         </div>
 
         <div className="flex flex-col gap-3">
-          {variants.map((v, idx) => (
-            <div
-              key={idx}
-              className="grid grid-cols-5 gap-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 items-center"
-            >
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold block mb-1">SKU</label>
-                <input
-                  type="text"
-                  required
-                  value={v.sku}
-                  onChange={(e) => updateVariant(idx, 'sku', e.target.value)}
-                  className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700"
-                />
-              </div>
+          {variants.map((v, idx) => {
+            const selectedColor = colors.find((c) => c.id === v.color_id);
 
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold block mb-1">Size</label>
-                <input
-                  type="text"
-                  value={v.size}
-                  onChange={(e) => updateVariant(idx, 'size', e.target.value)}
-                  className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700"
-                />
-              </div>
+            return (
+              <div
+                key={idx}
+                className="grid grid-cols-6 gap-3 items-center bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60"
+              >
+                {/* SKU */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-semibold">SKU *</label>
+                  <input
+                    type="text"
+                    required
+                    value={v.sku}
+                    onChange={(e) => updateVariant(idx, 'sku', e.target.value)}
+                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
+                  />
+                </div>
 
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold block mb-1">
-                  Price ($)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={v.price}
-                  onChange={(e) => updateVariant(idx, 'price', parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700"
-                />
-              </div>
+                {/* Color Selector */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-slate-400 font-semibold">Color</label>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenColorModalForVariant(idx)}
+                      className="text-[10px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-0.5"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> New
+                    </button>
+                  </div>
 
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold block mb-1">Stock</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={v.stock_quantity}
-                  onChange={(e) =>
-                    updateVariant(idx, 'stock_quantity', parseInt(e.target.value, 10) || 0)
-                  }
-                  className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700"
-                />
-              </div>
+                  <div className="relative flex items-center">
+                    {selectedColor && (
+                      <span
+                        className="absolute left-2.5 w-3 h-3 rounded-full border border-slate-600 pointer-events-none z-10"
+                        style={{ backgroundColor: selectedColor.hex_code }}
+                      />
+                    )}
+                    <select
+                      value={v.color_id || ''}
+                      onChange={(e) =>
+                        updateVariant(
+                          idx,
+                          'color_id',
+                          e.target.value ? Number(e.target.value) : undefined
+                        )
+                      }
+                      className={`w-full bg-slate-900 text-slate-100 text-xs py-1.5 rounded-lg border border-slate-700 focus:border-sky-500 ${
+                        selectedColor ? 'pl-7 pr-2' : 'px-2.5'
+                      }`}
+                    >
+                      <option value="">No Color</option>
+                      {colors.map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {col.name} ({col.hex_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2 pt-4">
-                <select
-                  value={v.color_id || ''}
-                  onChange={(e) =>
-                    updateVariant(idx, 'color_id', Number(e.target.value) || undefined)
-                  }
-                  className="w-full bg-slate-900 text-slate-100 text-xs px-2 py-1.5 rounded-lg border border-slate-700"
-                >
-                  <option value="">Color</option>
-                  {colors.map((col) => (
-                    <option key={col.id} value={col.id}>
-                      {col.name}
-                    </option>
-                  ))}
-                </select>
+                {/* Size */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-semibold">Size / Spec</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. M, 256GB"
+                    value={v.size}
+                    onChange={(e) => updateVariant(idx, 'size', e.target.value)}
+                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
+                  />
+                </div>
 
-                {variants.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeVariant(idx)}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                {/* Price */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-semibold">Price ($) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={v.price}
+                    onChange={(e) =>
+                      updateVariant(idx, 'price', parseFloat(e.target.value) || 0)
+                    }
+                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
+                  />
+                </div>
+
+                {/* Stock Quantity */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-slate-400 font-semibold">Stock Qty *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={v.stock_quantity}
+                    onChange={(e) =>
+                      updateVariant(idx, 'stock_quantity', parseInt(e.target.value, 10) || 0)
+                    }
+                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
+                  />
+                </div>
+
+                {/* Delete Button */}
+                <div className="flex items-center justify-center pt-4">
+                  {variants.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeVariant(idx)}
+                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      title="Remove Variant"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-600 font-semibold">Primary</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -463,7 +528,7 @@ export default function EditProductPage() {
           <button
             type="button"
             onClick={addSpec}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1 transition-colors"
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Add Attribute
           </button>
@@ -477,14 +542,14 @@ export default function EditProductPage() {
                 placeholder="Key (e.g. Battery, Material)"
                 value={s.spec_key}
                 onChange={(e) => updateSpec(idx, 'spec_key', e.target.value)}
-                className="w-1/3 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700"
+                className="w-1/3 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:border-sky-500"
               />
               <input
                 type="text"
                 placeholder="Value (e.g. 5000mAh, Cotton)"
                 value={s.spec_value}
                 onChange={(e) => updateSpec(idx, 'spec_value', e.target.value)}
-                className="flex-1 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700"
+                className="flex-1 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:border-sky-500"
               />
               <button
                 type="button"
@@ -497,6 +562,13 @@ export default function EditProductPage() {
           ))}
         </div>
       </div>
+
+      {/* Color Creation Modal */}
+      <CreateColorModal
+        isOpen={isColorModalOpen}
+        onClose={() => setIsColorModalOpen(false)}
+        onColorCreated={handleColorCreated}
+      />
     </form>
   );
 }

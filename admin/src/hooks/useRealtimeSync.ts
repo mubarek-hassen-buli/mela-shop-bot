@@ -19,11 +19,15 @@ export function useRealtimeSync() {
           try {
             const payload = JSON.parse(event.data);
             if (payload.type === 'CATALOG_UPDATED') {
-              // Real-time optimistic synchronization
-              queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-              queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-              queryClient.invalidateQueries({ queryKey: ['admin-brands'] });
-              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+              // Real-time instant synchronization
+              queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['admin-categories'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['admin-brands'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['admin-colors'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['categories'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['brands'], refetchType: 'all' });
             }
           } catch {
             // Heartbeats / comments

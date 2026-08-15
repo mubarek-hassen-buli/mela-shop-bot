@@ -18,10 +18,10 @@ export function useRealtimeSync() {
             const payload = JSON.parse(event.data);
             if (payload.type === 'CATALOG_UPDATED') {
               // Real-time instant catalog synchronization on customer's phone
-              queryClient.invalidateQueries({ queryKey: ['products'] });
-              queryClient.invalidateQueries({ queryKey: ['categories'] });
-              queryClient.invalidateQueries({ queryKey: ['brands'] });
-              queryClient.invalidateQueries({ queryKey: ['product-details'] });
+              queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['categories'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['brands'], refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: ['product-details'], refetchType: 'all' });
             }
           } catch {
             // Heartbeats / comments
