@@ -28,9 +28,10 @@ export default function BrandsPage() {
 
       const previousBrands = queryClient.getQueryData<Brand[]>(['admin-brands']) || [];
 
-      // Optimistically add new brand to cache
+      // Optimistically add new brand to cache with safe temporary ID
+      const tempId = -Math.floor(Math.random() * 1000000);
       const optimisticBrand: Brand = {
-        id: Date.now(),
+        id: tempId,
         name: newBrand.name,
         slug: newBrand.slug,
         is_active: true,
@@ -41,7 +42,16 @@ export default function BrandsPage() {
       setName('');
       setSlug('');
 
-      return { previousBrands };
+      return { previousBrands, tempId };
+    },
+    onSuccess: (realBrand, _vars, context) => {
+      // Replace optimistic brand with real server entity
+      queryClient.setQueryData<Brand[]>(['admin-brands'], (old = []) =>
+        old.map((b) => (b.id === context?.tempId || b.slug === realBrand.slug ? realBrand : b))
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin-brands'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['brands'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
     },
     onError: (err: any, _newBrand, context) => {
       if (context?.previousBrands) {
@@ -51,9 +61,9 @@ export default function BrandsPage() {
       setError(typeof msg === 'string' ? msg : 'Failed to create brand');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-brands'] });
-      queryClient.invalidateQueries({ queryKey: ['brands'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-brands'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['brands'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
     },
   });
 

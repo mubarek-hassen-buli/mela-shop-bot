@@ -11,6 +11,8 @@ from app.core.exceptions import NotFoundException, ConflictException
 from app.core.events import event_manager
 from app.models.admin import Admin
 from app.models.product import Product
+from app.models.category import Category
+from app.models.brand import Brand
 from app.models.product_variant import Color, ProductVariant, ProductSpecification
 from app.models.product_image import ProductImage
 from app.schemas.product import (
@@ -103,6 +105,16 @@ async def create_product(
     stmt = select(Product).where(Product.slug == payload.slug)
     if (await db.execute(stmt)).scalar_one_or_none():
         raise ConflictException(f"Product slug '{payload.slug}' already exists")
+
+    # Validate category exists
+    cat_stmt = select(Category).where(Category.id == payload.category_id)
+    if not (await db.execute(cat_stmt)).scalar_one_or_none():
+        raise NotFoundException(f"Category with ID {payload.category_id} not found. Please select a valid category.")
+
+    if payload.brand_id:
+        brand_stmt = select(Brand).where(Brand.id == payload.brand_id)
+        if not (await db.execute(brand_stmt)).scalar_one_or_none():
+            raise NotFoundException(f"Brand with ID {payload.brand_id} not found.")
 
     product = Product(
         title=payload.title,

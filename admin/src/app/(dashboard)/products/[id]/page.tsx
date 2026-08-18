@@ -115,8 +115,9 @@ export default function EditProductPage() {
       const msg =
         err?.response?.data?.detail?.message ||
         err?.response?.data?.detail ||
+        err?.message ||
         'Failed to update product.';
-      setError(typeof msg === 'string' ? msg : 'Failed to update product.');
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     },
   });
 

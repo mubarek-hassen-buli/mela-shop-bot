@@ -66,8 +66,9 @@ export default function CreateProductPage() {
       const msg =
         err?.response?.data?.detail?.message ||
         err?.response?.data?.detail ||
-        'Conflict: A product with this slug or SKU already exists.';
-      setError(typeof msg === 'string' ? msg : 'Conflict: Product slug or SKU already exists.');
+        err?.message ||
+        'Failed to create product. Please check your inputs.';
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     },
   });
 

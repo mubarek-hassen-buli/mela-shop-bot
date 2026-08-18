@@ -28,9 +28,10 @@ export default function CategoriesPage() {
 
       const previousCategories = queryClient.getQueryData<Category[]>(['admin-categories']) || [];
 
-      // Optimistically add new category
+      // Optimistically add new category with safe temporary ID
+      const tempId = -Math.floor(Math.random() * 1000000);
       const optimisticCategory: Category = {
-        id: Date.now(),
+        id: tempId,
         name: newCat.name,
         slug: newCat.slug,
         is_active: true,
@@ -41,7 +42,16 @@ export default function CategoriesPage() {
       setName('');
       setSlug('');
 
-      return { previousCategories };
+      return { previousCategories, tempId };
+    },
+    onSuccess: (realCat, _vars, context) => {
+      // Replace optimistic category with real server entity
+      queryClient.setQueryData<Category[]>(['admin-categories'], (old = []) =>
+        old.map((c) => (c.id === context?.tempId || c.slug === realCat.slug ? realCat : c))
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin-categories'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['categories'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
     },
     onError: (err: any, _newCat, context) => {
       if (context?.previousCategories) {
@@ -51,9 +61,9 @@ export default function CategoriesPage() {
       setError(typeof msg === 'string' ? msg : 'Failed to create category');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-categories'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['categories'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
     },
   });
 
