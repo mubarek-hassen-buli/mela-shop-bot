@@ -1,5 +1,12 @@
+import sys
 import asyncio
 from logging.config import fileConfig
+
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -42,11 +49,22 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    db_url = settings.DATABASE_URL.split("?")[0]
+    configuration["sqlalchemy.url"] = db_url
+
+    connect_args = {}
+    if "aivencloud.com" in settings.DATABASE_URL or "ssl" in settings.DATABASE_URL.lower():
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ctx
+
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:
