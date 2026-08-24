@@ -26,7 +26,7 @@ async def get_public_categories(
 ):
     stmt = select(Category).where(Category.is_active.is_(True), Category.parent_id.is_(None)).options(
         selectinload(Category.children)
-    ).order_by(Category.name.asc())
+    ).order_by(Category.display_order.asc(), Category.id.asc())
     res = await db.execute(stmt)
     return [CategoryResponse.model_validate(c) for c in res.scalars().all()]
 
@@ -49,14 +49,13 @@ async def get_public_products(
     brand_id: Optional[int] = None,
     min_price: Optional[Decimal] = None,
     max_price: Optional[Decimal] = None,
+    sort_by: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(Product).where(Product.is_active.is_(True)).options(
         selectinload(Product.category),
-        selectinload(Product.brand),
-        selectinload(Product.variants).selectinload(ProductVariant.color),
-        selectinload(Product.images),
-        selectinload(Product.specifications)
+        selectinload(Product.variants),
+        selectinload(Product.images)
     )
 
     if search:
@@ -65,19 +64,52 @@ async def get_public_products(
         stmt = stmt.where(Product.category_id == category_id)
     if brand_id:
         stmt = stmt.where(Product.brand_id == brand_id)
-    if min_price is not None or max_price is not None:
-        stmt = stmt.join(Product.variants)
-        if min_price is not None:
-            stmt = stmt.where(ProductVariant.price >= min_price)
-        if max_price is not None:
-            stmt = stmt.where(ProductVariant.price <= max_price)
 
-    # Count total unique
-    count_stmt = select(func.count()).select_from(stmt.distinct().subquery())
+    # Price range filtering via EXISTS subquery
+    if min_price is not None or max_price is not None:
+        v_conditions = [ProductVariant.product_id == Product.id, ProductVariant.is_active.is_(True)]
+        if min_price is not None:
+            v_conditions.append(ProductVariant.price >= min_price)
+        if max_price is not None:
+            v_conditions.append(ProductVariant.price <= max_price)
+        stmt = stmt.where(select(ProductVariant.id).where(*v_conditions).exists())
+
+    # Count total matching records
+    count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar_one()
 
+    # Price sorting via correlated group_by subquery
+    if sort_by == "price_asc":
+        price_subquery = (
+            select(
+                ProductVariant.product_id,
+                func.min(ProductVariant.price).label("sort_price")
+            )
+            .where(ProductVariant.is_active.is_(True))
+            .group_by(ProductVariant.product_id)
+            .subquery()
+        )
+        stmt = stmt.outerjoin(price_subquery, Product.id == price_subquery.c.product_id).order_by(
+            price_subquery.c.sort_price.asc(), Product.id.desc()
+        )
+    elif sort_by == "price_desc":
+        price_subquery = (
+            select(
+                ProductVariant.product_id,
+                func.max(ProductVariant.price).label("sort_price")
+            )
+            .where(ProductVariant.is_active.is_(True))
+            .group_by(ProductVariant.product_id)
+            .subquery()
+        )
+        stmt = stmt.outerjoin(price_subquery, Product.id == price_subquery.c.product_id).order_by(
+            price_subquery.c.sort_price.desc(), Product.id.desc()
+        )
+    else:
+        stmt = stmt.order_by(Product.id.desc())
+
     offset = (page - 1) * page_size
-    stmt = stmt.distinct().offset(offset).limit(page_size).order_by(Product.id.desc())
+    stmt = stmt.offset(offset).limit(page_size)
     res = await db.execute(stmt)
     products = res.scalars().all()
 

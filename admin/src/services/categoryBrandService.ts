@@ -8,8 +8,18 @@ export const categoryBrandService = {
     return data;
   },
 
-  createCategory: async (name: string, slug: string, parent_id?: number): Promise<Category> => {
-    const { data } = await adminApi.post<Category>('/admin/categories', { name, slug, parent_id });
+  createCategory: async (name: string, slug: string, image_url?: string, parent_id?: number): Promise<Category> => {
+    const { data } = await adminApi.post<Category>('/admin/categories', { name, slug, image_url, parent_id });
+    return data;
+  },
+
+  updateCategory: async (id: number, payload: { name?: string; slug?: string; image_url?: string; is_active?: boolean }): Promise<Category> => {
+    const { data } = await adminApi.put<Category>(`/admin/categories/${id}`, payload);
+    return data;
+  },
+
+  reorderCategories: async (categoryIds: number[]): Promise<MessageResponse> => {
+    const { data } = await adminApi.put<MessageResponse>('/admin/categories/reorder', { category_ids: categoryIds });
     return data;
   },
 

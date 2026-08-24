@@ -2,9 +2,11 @@ import sys
 import asyncio
 from logging.config import fileConfig
 
-if sys.platform == "win32":
+if sys.platform == "win32" and hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
     try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        _set_policy = getattr(asyncio, "set_event_loop_policy", None)
+        if callable(_set_policy):
+            _set_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except Exception:
         pass
 

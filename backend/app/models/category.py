@@ -1,5 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, ForeignKey, Index
+from sqlalchemy import String, Boolean, Integer, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -16,6 +16,7 @@ class Category(Base):
     slug: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     parent: Mapped[Optional["Category"]] = relationship("Category", remote_side=[id], back_populates="children")
@@ -25,4 +26,5 @@ class Category(Base):
     __table_args__ = (
         Index("idx_categories_slug", "slug"),
         Index("idx_categories_parent_id", "parent_id"),
+        Index("idx_categories_display_order", "display_order"),
     )

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Header } from './components/common/Header';
-import { BottomNav } from './components/common/BottomNav';
+import { BottomNav, NavTab } from './components/common/BottomNav';
 import { HomePage } from './pages/HomePage';
+import { FavoritesPage } from './pages/FavoritesPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { CartPage } from './pages/CartPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -13,7 +14,7 @@ import { Product } from './types/product';
 export function App() {
   const { initData } = useTelegram();
   useRealtimeSync();
-  const [activeTab, setActiveTab] = useState<'home' | 'cart' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Authenticate initData with backend upon load if available
@@ -33,21 +34,46 @@ export function App() {
     setSelectedProduct(null);
   };
 
+  const isHomeView = activeTab === 'home' && !selectedProduct;
+  const isProductPreview = Boolean(selectedProduct);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto relative overflow-hidden shadow-2xl">
-      <Header
-        title={selectedProduct ? 'Product Details' : 'Mela Shop'}
-        onCartClick={() => {
-          setSelectedProduct(null);
-          setActiveTab('cart');
-        }}
-      />
+    <div
+      className={`min-h-screen text-slate-100 flex flex-col max-w-[430px] w-full mx-auto relative overflow-hidden shadow-2xl ${
+        isHomeView || isProductPreview ? 'home-ambient-bg' : 'bg-[#0E0E10]'
+      }`}
+    >
+      {/* Show header on sub-screens (favorites, cart, profile) - omit for product preview which has floating liquid glass buttons */}
+      {!selectedProduct && activeTab !== 'home' && (
+        <Header
+          title={
+            activeTab === 'favorites'
+              ? 'Wishlist'
+              : activeTab === 'cart'
+              ? 'My Cart'
+              : 'Profile'
+          }
+          onCartClick={
+            activeTab !== 'cart'
+              ? () => {
+                  setSelectedProduct(null);
+                  setActiveTab('cart');
+                }
+              : undefined
+          }
+        />
+      )}
 
       <main className="flex-1 overflow-y-auto">
         {selectedProduct ? (
           <ProductDetailPage product={selectedProduct} onBack={handleBackToCatalog} />
         ) : activeTab === 'home' ? (
           <HomePage onSelectProduct={handleSelectProduct} />
+        ) : activeTab === 'favorites' ? (
+          <FavoritesPage
+            onSelectProduct={handleSelectProduct}
+            onExplore={() => setActiveTab('home')}
+          />
         ) : activeTab === 'cart' ? (
           <CartPage onBackToShop={() => setActiveTab('home')} />
         ) : (
@@ -55,13 +81,16 @@ export function App() {
         )}
       </main>
 
-      <BottomNav
-        activeTab={selectedProduct ? 'home' : activeTab}
-        onTabChange={(tab) => {
-          setSelectedProduct(null);
-          setActiveTab(tab);
-        }}
-      />
+      {/* iOS Liquid Glass Bottom Navigation Dock (Home/Tabs only) */}
+      {!selectedProduct && (
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setSelectedProduct(null);
+            setActiveTab(tab);
+          }}
+        />
+      )}
     </div>
   );
 }

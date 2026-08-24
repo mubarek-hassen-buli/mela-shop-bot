@@ -13,39 +13,48 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   onUpdateQuantity,
   onRemoveItem,
 }) => {
-  const primaryImage = item.product?.images.find((img) => img.is_primary)?.url || item.product?.images[0]?.url;
-  const variantLabel = [item.variant?.color?.name, item.variant?.size].filter(Boolean).join(' / ') || item.variant?.sku;
+  const primaryImage =
+    item.product?.images.find((img) => img.is_primary)?.url || item.product?.images[0]?.url;
+  const variantLabel =
+    [item.variant?.color?.name, item.variant?.size].filter(Boolean).join(' / ') ||
+    item.variant?.sku;
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-slate-800/60 rounded-2xl border border-slate-700/50">
-      <div className="w-16 h-16 bg-slate-950 rounded-xl overflow-hidden flex-shrink-0 border border-slate-800">
+    <div className="flex items-center gap-3.5 p-3.5 bg-[#121722]/80 backdrop-blur-xl rounded-3xl border border-white/10 shadow-lg">
+      <div className="w-16 h-16 bg-[#090c12] rounded-2xl overflow-hidden flex-shrink-0 border border-white/10">
         {primaryImage ? (
-          <img src={primaryImage} alt={item.product?.title} className="w-full h-full object-cover" />
+          <img
+            src={primaryImage}
+            alt={item.product?.title}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-600">No Img</div>
+          <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-500">
+            No Img
+          </div>
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <h4 className="text-xs font-semibold text-slate-100 truncate">{item.product?.title || 'Product'}</h4>
+        <h4 className="text-xs font-bold text-white truncate">{item.product?.title || 'Product'}</h4>
         <p className="text-[11px] text-slate-400 mt-0.5">{variantLabel}</p>
-        <span className="text-xs font-bold text-sky-400 mt-1 block">
-          ${Number(item.item_subtotal).toFixed(2)}
+        <span className="text-xs font-extrabold text-white mt-1 block">
+          {Number(item.item_subtotal).toLocaleString()} Birr
         </span>
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center bg-slate-900 rounded-xl p-1 border border-slate-700/60">
+        <div className="flex items-center bg-white/10 backdrop-blur-md rounded-full p-1 border border-white/15">
           <button
             onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
-            className="p-1 text-slate-400 hover:text-slate-100 transition-colors"
+            className="p-1 text-white/70 hover:text-white transition-colors"
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
-          <span className="px-2 text-xs font-semibold text-slate-200">{item.quantity}</span>
+          <span className="px-2 text-xs font-bold text-white">{item.quantity}</span>
           <button
             onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-            className="p-1 text-slate-400 hover:text-slate-100 transition-colors"
+            className="p-1 text-white/70 hover:text-white transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -53,7 +62,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 
         <button
           onClick={() => onRemoveItem(item.id)}
-          className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+          className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
         </button>

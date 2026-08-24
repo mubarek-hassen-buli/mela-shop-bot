@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 
-# On Windows with Python 3.14+, SelectorEventLoop avoids WinError 87 on async SSL sockets
-if sys.platform == "win32":
+# On Windows with Python 3.12+/3.14+, SelectorEventLoop avoids WinError 87 & deadlocks on async SSL connections
+if sys.platform == "win32" and hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except Exception:
@@ -18,9 +18,11 @@ engine_kwargs = {}
 if "sqlite" in settings.DATABASE_URL:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
-    engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
-    engine_kwargs["pool_timeout"] = settings.DB_POOL_TIMEOUT
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_timeout"] = 30
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
 
     # Configure SSL for hosted cloud MySQL (e.g. Aiven)
     if "aivencloud.com" in settings.DATABASE_URL or "ssl" in settings.DATABASE_URL.lower():

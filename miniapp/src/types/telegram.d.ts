@@ -32,6 +32,9 @@ export interface TelegramWebApp {
   viewportStableHeight: number;
   headerColor: string;
   backgroundColor: string;
+  setHeaderColor: (color: string) => void;
+  setBackgroundColor: (color: string) => void;
+  setBottomBarColor?: (color: string) => void;
   BackButton: {
     isVisible: boolean;
     show: () => void;

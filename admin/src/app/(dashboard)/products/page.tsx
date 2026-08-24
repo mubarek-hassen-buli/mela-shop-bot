@@ -21,6 +21,7 @@ export default function ProductsListPage() {
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: () => productService.getProducts({ page, search }),
+    staleTime: 1000 * 60 * 5,
   });
 
   const toggleStatusMutation = useMutation({
@@ -64,7 +65,6 @@ export default function ProductsListPage() {
 
       const previousData = queryClient.getQueryData<PaginatedResponse<Product>>(queryKey);
 
-      // Optimistically remove product from current page list
       if (previousData) {
         queryClient.setQueryData<PaginatedResponse<Product>>(queryKey, {
           ...previousData,
@@ -93,30 +93,32 @@ export default function ProductsListPage() {
   const products = data?.items || [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Products Catalog</h1>
-          <p className="text-xs text-slate-400 mt-1">Manage items, variants, pricing, visibility, and stock levels</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Products Catalog</h1>
+          <p className="text-xs text-white/50 mt-1">Manage items, pricing, visibility, and stock levels</p>
         </div>
 
         <Link
           href="/products/create"
-          className="px-4 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold rounded-xl shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all active:scale-[0.98]"
+          prefetch={true}
+          className="admin-btn-primary px-5 py-2.5 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg"
         >
-          <Plus className="w-4 h-4" /> Create Product
+          <Plus className="w-4 h-4 stroke-[3]" /> Create Product
         </Link>
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
           {error}
         </div>
       )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+      {/* Search Header */}
+      <div className="admin-card rounded-3xl p-4 flex items-center justify-between shadow-xl">
         <div className="relative w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
           <input
             type="text"
             value={search}
@@ -124,100 +126,100 @@ export default function ProductsListPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by title or slug..."
-            className="w-full bg-slate-800 text-slate-100 text-xs pl-10 pr-4 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500 transition-colors"
+            placeholder="Search by title or category..."
+            className="w-full bg-white/[0.04] text-white placeholder-white/40 text-xs pl-10 pr-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 transition-colors"
           />
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      {/* Table Container */}
+      <div className="admin-card rounded-3xl overflow-hidden shadow-2xl">
         {isLoading && products.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-500">Loading product catalog...</div>
+          <div className="p-12 text-center text-xs text-white/40">Loading product catalog...</div>
         ) : products.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center gap-2 text-slate-500">
-            <Package className="w-8 h-8 text-slate-600" />
+          <div className="p-12 text-center flex flex-col items-center gap-2 text-white/40">
+            <Package className="w-8 h-8 text-white/20" />
             <span className="text-xs">No products found</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
+            <table className="w-full text-left text-xs text-white/70">
+              <thead className="bg-black/40 text-white/50 uppercase font-semibold text-[10px] tracking-wider border-b border-white/[0.06]">
                 <tr>
                   <th className="px-6 py-4">Title</th>
                   <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Brand</th>
-                  <th className="px-6 py-4">Variants</th>
+                  <th className="px-6 py-4">Price</th>
                   <th className="px-6 py-4">Visibility</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-medium">
-                {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-100 text-sm">{p.title}</span>
-                        <span className="text-[11px] text-slate-500">/{p.slug}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">{p.category?.name || 'Uncategorized'}</td>
-                    <td className="px-6 py-4">{p.brand?.name || '-'}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 font-bold text-[11px]">
-                        {p.variants?.length || 0} Variants
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {p.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          VISIBLE IN APP
+              <tbody className="divide-y divide-white/[0.05] font-medium">
+                {products.map((p) => {
+                  const primaryPrice = p.variants?.[0]?.price ? Number(p.variants[0].price) : 0;
+                  return (
+                    <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-white text-sm block">{p.title}</span>
+                      </td>
+                      <td className="px-6 py-4 text-white/80">{p.category?.name || 'Uncategorized'}</td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-bold text-white">
+                          {primaryPrice.toLocaleString()} Birr
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                          HIDDEN
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Hide / Show Eye Toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleStatusMutation.mutate(p.id)}
-                          className={`p-2 rounded-xl transition-all ${
-                            p.is_active
-                              ? 'text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300'
-                              : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                          }`}
-                          title={p.is_active ? 'Click to Hide from Mini App' : 'Click to Show in Mini App'}
-                        >
-                          {p.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        {p.is_active ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            VISIBLE IN APP
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/[0.05] text-white/40 border border-white/10 text-[10px] font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                            HIDDEN
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Hide / Show Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleStatusMutation.mutate(p.id)}
+                            className={`p-2 rounded-xl transition-all ${
+                              p.is_active
+                                ? 'text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300'
+                                : 'text-white/40 hover:bg-white/[0.06] hover:text-white'
+                            }`}
+                            title={p.is_active ? 'Click to Hide from Mini App' : 'Click to Show in Mini App'}
+                          >
+                            {p.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
 
-                        {/* Edit Product */}
-                        <Link
-                          href={`/products/${p.id}`}
-                          className="p-2 text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 rounded-xl transition-colors"
-                          title="Edit product details & images"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Link>
+                          {/* Edit Product */}
+                          <Link
+                            href={`/products/${p.id}`}
+                            prefetch={true}
+                            className="p-2 text-white/50 hover:text-white hover:bg-white/[0.06] rounded-xl transition-colors"
+                            title="Edit product details & images"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Link>
 
-                        {/* Delete Product */}
-                        <button
-                          type="button"
-                          onClick={() => setProductToDelete(p)}
-                          className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
-                          title="Delete product"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {/* Delete Product */}
+                          <button
+                            type="button"
+                            onClick={() => setProductToDelete(p)}
+                            className="p-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
+                            title="Delete product"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -8,6 +8,21 @@ export function useTelegram() {
     if (tg) {
       tg.ready();
       tg.expand();
+
+      // Configure native Telegram header and background to match #0E0E10 brand color
+      try {
+        if (typeof tg.setHeaderColor === 'function') {
+          tg.setHeaderColor('#0E0E10');
+        }
+        if (typeof tg.setBackgroundColor === 'function') {
+          tg.setBackgroundColor('#0E0E10');
+        }
+        if (typeof tg.setBottomBarColor === 'function') {
+          tg.setBottomBarColor('#0E0E10');
+        }
+      } catch (e) {
+        console.warn('Could not set Telegram native bar colors:', e);
+      }
     }
   }, [tg]);
 

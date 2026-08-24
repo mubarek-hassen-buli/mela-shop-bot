@@ -7,6 +7,7 @@ class CategoryBase(BaseModel):
     slug: str = Field(..., min_length=1, max_length=120)
     parent_id: Optional[int] = None
     image_url: Optional[str] = None
+    display_order: int = 0
     is_active: bool = True
 
 
@@ -19,7 +20,12 @@ class CategoryUpdate(BaseModel):
     slug: Optional[str] = Field(None, min_length=1, max_length=120)
     parent_id: Optional[int] = None
     image_url: Optional[str] = None
+    display_order: Optional[int] = None
     is_active: Optional[bool] = None
+
+
+class CategoryReorderPayload(BaseModel):
+    category_ids: List[int] = Field(..., min_length=1)
 
 
 class CategoryMinimalResponse(CategoryBase):
@@ -32,4 +38,3 @@ class CategoryResponse(CategoryMinimalResponse):
     children: List["CategoryResponse"] = []
 
     model_config = ConfigDict(from_attributes=True)
-

@@ -8,7 +8,7 @@ export const productService = {
     return data;
   },
 
-  getProducts: async (params?: { page?: number; search?: string; category_id?: number }): Promise<PaginatedResponse<Product>> => {
+  getProducts: async (params?: { page?: number; page_size?: number; search?: string; category_id?: number }): Promise<PaginatedResponse<Product>> => {
     const { data } = await adminApi.get<PaginatedResponse<Product>>('/admin/products', { params });
     return data;
   },

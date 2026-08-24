@@ -10,7 +10,7 @@ from app.core.exceptions import NotFoundException, ConflictException
 from app.core.events import event_manager
 from app.models.admin import Admin
 from app.models.category import Category
-from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse, CategoryReorderPayload
 from app.schemas.common import MessageResponse
 
 router = APIRouter(prefix="/admin/categories", tags=["Admin Categories"])
@@ -21,9 +21,27 @@ async def list_admin_categories(
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin)
 ):
-    stmt = select(Category).options(selectinload(Category.children)).order_by(Category.name.asc())
+    stmt = select(Category).options(selectinload(Category.children)).order_by(Category.display_order.asc(), Category.id.asc())
     res = await db.execute(stmt)
     return [CategoryResponse.model_validate(c) for c in res.scalars().all()]
+
+
+@router.put("/reorder", response_model=MessageResponse)
+async def reorder_categories(
+    payload: CategoryReorderPayload,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin)
+):
+    for index, cat_id in enumerate(payload.category_ids):
+        stmt = select(Category).where(Category.id == cat_id)
+        res = await db.execute(stmt)
+        cat = res.scalar_one_or_none()
+        if cat:
+            cat.display_order = index
+
+    await db.commit()
+    await event_manager.broadcast("CATALOG_UPDATED", {"entity": "category", "action": "reorder"})
+    return MessageResponse(message="Categories reordered successfully")
 
 
 @router.post("", response_model=CategoryResponse)

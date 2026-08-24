@@ -1,15 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Trash2, Check, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Loader2, UploadCloud, X, ImageIcon } from 'lucide-react';
 import { productService } from '../../../../services/productService';
 import { categoryBrandService } from '../../../../services/categoryBrandService';
-import { CloudinaryUploader } from '../../../../components/media/CloudinaryUploader';
-import { UploadMediaResponse } from '../../../../services/mediaService';
-import { CreateColorModal } from '../../../../components/ui/CreateColorModal';
-import { Color } from '../../../../types/product';
+import { mediaService, UploadMediaResponse } from '../../../../services/mediaService';
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -18,89 +15,78 @@ export default function EditProductPage() {
   const productId = Number(params?.id);
 
   const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState<string>('0');
   const [categoryId, setCategoryId] = useState<number | ''>('');
-  const [brandId, setBrandId] = useState<number | ''>('');
+  const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
 
-  // Dynamic Lists
-  const [variants, setVariants] = useState<
-    { sku: string; size: string; price: number; stock_quantity: number; color_id?: number }[]
-  >([]);
+  // 3 Dedicated Image Slots: Main, Angle 2 (Optional), Angle 3 (Optional)
+  const [image1, setImage1] = useState<UploadMediaResponse | null>(null);
+  const [image2, setImage2] = useState<UploadMediaResponse | null>(null);
+  const [image3, setImage3] = useState<UploadMediaResponse | null>(null);
 
-  const [images, setImages] = useState<UploadMediaResponse[]>([]);
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
 
-  const [specs, setSpecs] = useState<{ spec_key: string; spec_value: string }[]>([]);
+  // Key Features list
+  const [features, setFeatures] = useState<string[]>([]);
 
-  // Color modal state
-  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
-  const [activeVariantIdxForColor, setActiveVariantIdxForColor] = useState<number | null>(null);
+  const fileInputRef1 = useRef<HTMLInputElement>(null);
+  const fileInputRef2 = useRef<HTMLInputElement>(null);
+  const fileInputRef3 = useRef<HTMLInputElement>(null);
 
   const [error, setError] = useState<string | null>(null);
 
-  const { data: product, isLoading: isFetchingProduct } = useQuery({
+  const { data: product, isLoading: isProductLoading } = useQuery({
     queryKey: ['admin-product', productId],
     queryFn: () => productService.getProduct(productId),
     enabled: Boolean(productId),
+    staleTime: 1000 * 60 * 5,
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ['admin-categories'],
     queryFn: categoryBrandService.getCategories,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const { data: brands = [] } = useQuery({
-    queryKey: ['admin-brands'],
-    queryFn: categoryBrandService.getBrands,
-  });
-
-  const { data: colors = [] } = useQuery({
-    queryKey: ['admin-colors'],
-    queryFn: productService.getColors,
-  });
-
-  // Pre-fill form when product data is fetched
   useEffect(() => {
     if (product) {
-      setTitle(product.title || '');
-      setSlug(product.slug || '');
+      setTitle(product.title);
       setDescription(product.description || '');
-      setCategoryId(product.category_id || '');
-      setBrandId(product.brand_id || '');
-      setIsActive(product.is_active ?? true);
+      setCategoryId(product.category_id);
+      setIsActive(product.is_active);
 
       if (product.variants && product.variants.length > 0) {
-        setVariants(
-          product.variants.map((v) => ({
-            sku: v.sku,
-            size: v.size || '',
-            price: Number(v.price),
-            stock_quantity: v.stock_quantity,
-            color_id: v.color_id || undefined,
-          }))
-        );
+        setPrice(String(product.variants[0].price));
       }
 
-      if (product.images && product.images.length > 0) {
-        setImages(
-          product.images.map((img) => ({
-            cloudinary_public_id: img.cloudinary_public_id,
-            url: img.url,
-          }))
-        );
-      }
+      // Populate up to 3 images
+      const sortedImages = [...(product.images || [])].sort((a, b) => a.display_order - b.display_order);
+      setImage1(sortedImages[0] ? { cloudinary_public_id: sortedImages[0].cloudinary_public_id, url: sortedImages[0].url } : null);
+      setImage2(sortedImages[1] ? { cloudinary_public_id: sortedImages[1].cloudinary_public_id, url: sortedImages[1].url } : null);
+      setImage3(sortedImages[2] ? { cloudinary_public_id: sortedImages[2].cloudinary_public_id, url: sortedImages[2].url } : null);
 
-      if (product.specifications && product.specifications.length > 0) {
-        setSpecs(
-          product.specifications.map((s) => ({
-            spec_key: s.spec_key,
-            spec_value: s.spec_value,
-          }))
-        );
-      }
+      // Populate features
+      const loadedFeatures = (product.specifications || []).map((s) => s.spec_value).filter(Boolean);
+      setFeatures(loadedFeatures.length > 0 ? loadedFeatures : ['Powerful Processing']);
     }
   }, [product]);
+
+  const handleFileUpload = async (file: File, slot: number) => {
+    setError(null);
+    setUploadingSlot(slot);
+    try {
+      const res = await mediaService.uploadImage(file);
+      if (slot === 1) setImage1(res);
+      else if (slot === 2) setImage2(res);
+      else if (slot === 3) setImage3(res);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || 'Failed to upload image.';
+      setError(typeof msg === 'string' ? msg : 'Upload failed');
+    } finally {
+      setUploadingSlot(null);
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: (payload: any) => productService.updateProduct(productId, payload),
@@ -108,7 +94,6 @@ export default function EditProductPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['admin-product', productId], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'], refetchType: 'all' });
       router.push('/products');
     },
     onError: (err: any) => {
@@ -121,121 +106,104 @@ export default function EditProductPage() {
     },
   });
 
-  // Variant Helpers
-  const addVariant = () => {
-    setVariants((prev) => [
-      ...prev,
-      {
-        sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-        size: 'L',
-        price: 39.99,
-        stock_quantity: 5,
-      },
-    ]);
+  const handleAddFeature = () => {
+    setFeatures([...features, '']);
   };
 
-  const removeVariant = (index: number) => {
-    setVariants((prev) => prev.filter((_, idx) => idx !== index));
+  const handleFeatureChange = (index: number, val: string) => {
+    const updated = [...features];
+    updated[index] = val;
+    setFeatures(updated);
   };
 
-  const updateVariant = (index: number, field: string, value: any) => {
-    setVariants((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
-    );
-  };
-
-  const handleOpenColorModalForVariant = (idx: number) => {
-    setActiveVariantIdxForColor(idx);
-    setIsColorModalOpen(true);
-  };
-
-  const handleColorCreated = (newColor: Color) => {
-    if (activeVariantIdxForColor !== null && variants[activeVariantIdxForColor]) {
-      const copy = [...variants];
-      copy[activeVariantIdxForColor].color_id = newColor.id;
-      setVariants(copy);
-    }
-  };
-
-  // Spec Helpers
-  const addSpec = () => {
-    setSpecs((prev) => [...prev, { spec_key: '', spec_value: '' }]);
-  };
-
-  const removeSpec = (index: number) => {
-    setSpecs((prev) => prev.filter((_, idx) => idx !== index));
-  };
-
-  const updateSpec = (index: number, field: 'spec_key' | 'spec_value', value: string) => {
-    setSpecs((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
-    );
+  const handleRemoveFeature = (index: number) => {
+    setFeatures(features.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !slug || !categoryId) {
-      setError('Please fill in required fields (Title, Slug, Category).');
+    if (!categoryId) {
+      setError('Please select a category.');
       return;
     }
 
-    if (variants.length === 0) {
-      setError('Please add at least one product variant (SKU, Size, Price, Stock).');
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setError('Please enter a valid positive price.');
       return;
     }
 
-    setError(null);
+    // Auto-generate or maintain slug
+    const derivedSlug =
+      title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '') || product?.slug || `product-${productId}`;
+
+    // Collect all uploaded images
+    const imagesPayload: any[] = [];
+    if (image1) imagesPayload.push({ media_id: image1.id, is_primary: true, display_order: 1, url: image1.url, cloudinary_public_id: image1.cloudinary_public_id });
+    if (image2) imagesPayload.push({ media_id: image2.id, is_primary: false, display_order: 2, url: image2.url, cloudinary_public_id: image2.cloudinary_public_id });
+    if (image3) imagesPayload.push({ media_id: image3.id, is_primary: false, display_order: 3, url: image3.url, cloudinary_public_id: image3.cloudinary_public_id });
+
+    // Collect features
+    const cleanedFeatures = features.map((f) => f.trim()).filter(Boolean);
+    const specsPayload = cleanedFeatures.map((f, idx) => ({
+      key: `Feature ${idx + 1}`,
+      value: f,
+    }));
+
     updateMutation.mutate({
-      title,
-      slug,
-      description,
+      title: title.trim(),
+      slug: derivedSlug,
       category_id: Number(categoryId),
-      brand_id: brandId ? Number(brandId) : undefined,
+      description: description.trim() || undefined,
       is_active: isActive,
-      variants,
-      images: images.map((img, idx) => ({
-        cloudinary_public_id: img.cloudinary_public_id,
-        url: img.url,
-        display_order: idx,
-        is_primary: idx === 0,
-      })),
-      specifications: specs.filter((s) => s.spec_key.trim() && s.spec_value.trim()),
+      images: imagesPayload,
+      specifications: specsPayload,
+      variants: [
+        {
+          id: product?.variants?.[0]?.id,
+          sku: product?.variants?.[0]?.sku || `SKU-${productId}`,
+          price: priceNum,
+          stock: product?.variants?.[0]?.stock ?? 50,
+          is_active: true,
+        },
+      ],
     });
   };
 
-  if (isFetchingProduct) {
+  if (isProductLoading) {
     return (
-      <div className="flex items-center justify-center py-24 text-slate-400 gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
-        <span className="text-xs">Loading product details...</span>
+      <div className="flex items-center justify-center py-20 text-xs text-white/40">
+        Loading product details...
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-8 max-w-5xl pb-16">
-      {/* Top Action Header */}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6 max-w-4xl pb-16">
+      {/* Top Bar with Back Link and Action */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.back()}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+            onClick={() => router.push('/products')}
+            className="p-2 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/[0.08] transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Edit Product</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Update catalog details, color variants, specifications, and media
-            </p>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Edit Product</h1>
+            <p className="text-xs text-white/50 mt-0.5">Modify pricing, category, images, or features</p>
           </div>
         </div>
 
         <button
           type="submit"
-          disabled={updateMutation.isPending}
-          className="px-6 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold rounded-xl shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
+          disabled={updateMutation.isPending || uploadingSlot !== null}
+          className="admin-btn-primary px-6 py-2.5 text-xs font-bold flex items-center gap-2 disabled:opacity-50"
         >
           {updateMutation.isPending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -247,49 +215,34 @@ export default function EditProductPage() {
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
           {error}
         </div>
       )}
 
-      {/* Basic Info Section */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
-        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Basic Information
-        </h3>
+      {/* Main Details Card */}
+      <div className="admin-card rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Product Information</h3>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400">Product Title *</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="bg-slate-800 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400">URL Slug *</label>
-            <input
-              type="text"
-              required
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="bg-slate-800 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500"
-            />
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-white/60">Product Title *</label>
+          <input
+            type="text"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-white/[0.04] text-white placeholder-white/40 text-xs px-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 transition-colors"
+          />
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400">Category *</label>
+            <label className="text-[11px] font-semibold text-white/60">Category *</label>
             <select
               required
               value={categoryId}
               onChange={(e) => setCategoryId(Number(e.target.value) || '')}
-              className="bg-slate-800 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500"
+              className="w-full bg-[#14171E] text-white text-xs px-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 transition-colors"
             >
               <option value="">Select Category</option>
               {categories.map((c) => (
@@ -301,261 +254,211 @@ export default function EditProductPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400">Brand</label>
-            <select
-              value={brandId}
-              onChange={(e) => setBrandId(Number(e.target.value) || '')}
-              className="bg-slate-800 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500"
-            >
-              <option value="">No Brand (Generic)</option>
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5 justify-center">
-            <label className="text-[11px] font-semibold text-slate-400">Mini App Visibility</label>
-            <button
-              type="button"
-              onClick={() => setIsActive(!isActive)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-colors flex items-center justify-center gap-2 ${
-                isActive
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
-            >
-              <Check className={`w-4 h-4 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
-              {isActive ? 'Visible in Mini App' : 'Hidden from Mini App'}
-            </button>
+            <label className="text-[11px] font-semibold text-white/60">Price (Birr) *</label>
+            <input
+              type="number"
+              required
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full bg-white/[0.04] text-white text-xs px-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 font-bold"
+            />
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-semibold text-slate-400">Description</label>
+          <label className="text-[11px] font-semibold text-white/60">Description</label>
           <textarea
-            rows={3}
+            rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="bg-slate-800 text-slate-100 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700/60 focus:outline-none focus:border-sky-500 resize-none"
+            className="w-full bg-white/[0.04] text-white placeholder-white/40 text-xs px-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 transition-colors resize-none"
           />
         </div>
       </div>
 
-      {/* Cloudinary Media Manager */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
-        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
-          Product Images (Cloudinary)
-        </h3>
-        <CloudinaryUploader onUploadSuccess={(img) => setImages((prev) => [...prev, img])} />
+      {/* 3 Dedicated Product Image Angle Slots */}
+      <div className="admin-card rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+        <div>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+            Product Photos (3 Angles)
+          </h3>
+          <p className="text-[11px] text-white/50 mt-0.5">
+            Main photo is required. Add 2 optional angle photos to enable customer carousel.
+          </p>
+        </div>
 
-        {images.length > 0 && (
-          <div className="grid grid-cols-4 gap-3 mt-2">
-            {images.map((img, idx) => (
-              <div
-                key={img.cloudinary_public_id || idx}
-                className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 bg-slate-950"
-              >
-                <img src={img.url} alt="Product image" className="w-full h-full object-cover" />
+        <input
+          ref={fileInputRef1}
+          type="file"
+          accept="image/*"
+          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 1)}
+          className="hidden"
+        />
+        <input
+          ref={fileInputRef2}
+          type="file"
+          accept="image/*"
+          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 2)}
+          className="hidden"
+        />
+        <input
+          ref={fileInputRef3}
+          type="file"
+          accept="image/*"
+          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 3)}
+          className="hidden"
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Slot 1: Main Photo */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-white">1. Main Photo *</span>
+              {image1 && <span className="text-[10px] text-emerald-400 font-medium">Uploaded</span>}
+            </div>
+
+            {image1 ? (
+              <div className="relative aspect-video rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex items-center justify-center p-2">
+                <img src={image1.url} alt="Main view" className="max-w-full max-h-full object-contain" />
                 <button
                   type="button"
-                  onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                  className="absolute top-1 right-1 p-1 bg-slate-900/80 text-rose-400 rounded-md hover:bg-slate-900 transition-colors"
+                  onClick={() => setImage1(null)}
+                  className="absolute top-2 right-2 p-1.5 rounded-xl bg-rose-500/80 text-white hover:bg-rose-600 transition-colors shadow-md"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ))}
+            ) : (
+              <button
+                type="button"
+                disabled={uploadingSlot !== null}
+                onClick={() => fileInputRef1.current?.click()}
+                className="aspect-video rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 text-white/60 hover:text-white transition-all cursor-pointer"
+              >
+                {uploadingSlot === 1 ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <>
+                    <UploadCloud className="w-5 h-5 text-white/70" />
+                    <span className="text-[11px] font-semibold text-white/80">Upload Main Photo</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
-        )}
+
+          {/* Slot 2: Angle 2 (Optional) */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-white/50">2. Angle 2 (Optional)</span>
+              {image2 && <span className="text-[10px] text-emerald-400 font-medium">Uploaded</span>}
+            </div>
+
+            {image2 ? (
+              <div className="relative aspect-video rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex items-center justify-center p-2">
+                <img src={image2.url} alt="Angle 2" className="max-w-full max-h-full object-contain" />
+                <button
+                  type="button"
+                  onClick={() => setImage2(null)}
+                  className="absolute top-2 right-2 p-1.5 rounded-xl bg-rose-500/80 text-white hover:bg-rose-600 transition-colors shadow-md"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={uploadingSlot !== null}
+                onClick={() => fileInputRef2.current?.click()}
+                className="aspect-video rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-white/40 hover:text-white/80 transition-all cursor-pointer"
+              >
+                {uploadingSlot === 2 ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <>
+                    <ImageIcon className="w-5 h-5 text-white/30" />
+                    <span className="text-[11px] font-medium text-white/50">+ Add Angle 2</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Slot 3: Angle 3 (Optional) */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-white/50">3. Angle 3 (Optional)</span>
+              {image3 && <span className="text-[10px] text-emerald-400 font-medium">Uploaded</span>}
+            </div>
+
+            {image3 ? (
+              <div className="relative aspect-video rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex items-center justify-center p-2">
+                <img src={image3.url} alt="Angle 3" className="max-w-full max-h-full object-contain" />
+                <button
+                  type="button"
+                  onClick={() => setImage3(null)}
+                  className="absolute top-2 right-2 p-1.5 rounded-xl bg-rose-500/80 text-white hover:bg-rose-600 transition-colors shadow-md"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={uploadingSlot !== null}
+                onClick={() => fileInputRef3.current?.click()}
+                className="aspect-video rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-white/40 hover:text-white/80 transition-all cursor-pointer"
+              >
+                {uploadingSlot === 3 ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <>
+                    <ImageIcon className="w-5 h-5 text-white/30" />
+                    <span className="text-[11px] font-medium text-white/50">+ Add Angle 3</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Variants & Colors Builder */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
+      {/* Key Features Section */}
+      <div className="admin-card rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Variants, Colors & Stock Configuration
-            </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Add multiple color variants, sizes, and inventory levels
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Key Features</h3>
+            <p className="text-[11px] text-white/50 mt-0.5">
+              Bullet points displayed directly on the product detail page
             </p>
           </div>
+
           <button
             type="button"
-            onClick={addVariant}
-            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
+            onClick={handleAddFeature}
+            className="px-3.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] text-white text-xs font-semibold rounded-xl border border-white/10 flex items-center gap-1 transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" /> Add Variant
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {variants.map((v, idx) => {
-            const selectedColor = colors.find((c) => c.id === v.color_id);
-
-            return (
-              <div
-                key={idx}
-                className="grid grid-cols-6 gap-3 items-center bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60"
-              >
-                {/* SKU */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-slate-400 font-semibold">SKU *</label>
-                  <input
-                    type="text"
-                    required
-                    value={v.sku}
-                    onChange={(e) => updateVariant(idx, 'sku', e.target.value)}
-                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
-                  />
-                </div>
-
-                {/* Color Selector */}
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-slate-400 font-semibold">Color</label>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenColorModalForVariant(idx)}
-                      className="text-[10px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-0.5"
-                    >
-                      <Plus className="w-2.5 h-2.5" /> New
-                    </button>
-                  </div>
-
-                  <div className="relative flex items-center">
-                    {selectedColor && (
-                      <span
-                        className="absolute left-2.5 w-3 h-3 rounded-full border border-slate-600 pointer-events-none z-10"
-                        style={{ backgroundColor: selectedColor.hex_code }}
-                      />
-                    )}
-                    <select
-                      value={v.color_id || ''}
-                      onChange={(e) =>
-                        updateVariant(
-                          idx,
-                          'color_id',
-                          e.target.value ? Number(e.target.value) : undefined
-                        )
-                      }
-                      className={`w-full bg-slate-900 text-slate-100 text-xs py-1.5 rounded-lg border border-slate-700 focus:border-sky-500 ${
-                        selectedColor ? 'pl-7 pr-2' : 'px-2.5'
-                      }`}
-                    >
-                      <option value="">No Color</option>
-                      {colors.map((col) => (
-                        <option key={col.id} value={col.id}>
-                          {col.name} ({col.hex_code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Size */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-slate-400 font-semibold">Size / Spec</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. M, 256GB"
-                    value={v.size}
-                    onChange={(e) => updateVariant(idx, 'size', e.target.value)}
-                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
-                  />
-                </div>
-
-                {/* Price */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-slate-400 font-semibold">Price ($) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    value={v.price}
-                    onChange={(e) =>
-                      updateVariant(idx, 'price', parseFloat(e.target.value) || 0)
-                    }
-                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
-                  />
-                </div>
-
-                {/* Stock Quantity */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-slate-400 font-semibold">Stock Qty *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={v.stock_quantity}
-                    onChange={(e) =>
-                      updateVariant(idx, 'stock_quantity', parseInt(e.target.value, 10) || 0)
-                    }
-                    className="w-full bg-slate-900 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500"
-                  />
-                </div>
-
-                {/* Delete Button */}
-                <div className="flex items-center justify-center pt-4">
-                  {variants.length > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(idx)}
-                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                      title="Remove Variant"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <span className="text-[10px] text-slate-600 font-semibold">Primary</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Specifications */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-            Technical Specifications
-          </h3>
-          <button
-            type="button"
-            onClick={addSpec}
-            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-sky-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Attribute
+            <Plus className="w-3.5 h-3.5" /> Add Another
           </button>
         </div>
 
         <div className="flex flex-col gap-2.5">
-          {specs.map((s, idx) => (
-            <div key={idx} className="flex items-center gap-3">
+          {features.map((feat, idx) => (
+            <div key={idx} className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Key (e.g. Battery, Material)"
-                value={s.spec_key}
-                onChange={(e) => updateSpec(idx, 'spec_key', e.target.value)}
-                className="w-1/3 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:border-sky-500"
-              />
-              <input
-                type="text"
-                placeholder="Value (e.g. 5000mAh, Cotton)"
-                value={s.spec_value}
-                onChange={(e) => updateSpec(idx, 'spec_value', e.target.value)}
-                className="flex-1 bg-slate-800 text-slate-100 text-xs px-3.5 py-2 rounded-xl border border-slate-700 focus:border-sky-500"
+                value={feat}
+                onChange={(e) => handleFeatureChange(idx, e.target.value)}
+                placeholder="e.g. 512GB SSD for quick access and secure storage"
+                className="flex-1 bg-white/[0.04] text-white placeholder-white/40 text-xs px-4 py-2.5 rounded-2xl border border-white/[0.08] focus:outline-none focus:border-white/30 transition-colors"
               />
               <button
                 type="button"
-                onClick={() => removeSpec(idx)}
-                className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
+                onClick={() => handleRemoveFeature(idx)}
+                className="p-2.5 rounded-2xl bg-white/[0.03] text-white/40 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.06] transition-colors"
+                title="Remove Feature"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -564,12 +467,23 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      {/* Color Creation Modal */}
-      <CreateColorModal
-        isOpen={isColorModalOpen}
-        onClose={() => setIsColorModalOpen(false)}
-        onColorCreated={handleColorCreated}
-      />
+      {/* Status Toggle */}
+      <div className="admin-card rounded-3xl p-6 flex items-center justify-between shadow-xl">
+        <div>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider">Product Status</h3>
+          <p className="text-[11px] text-white/50 mt-0.5">Publish product immediately to catalog</p>
+        </div>
+
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+        </label>
+      </div>
     </form>
   );
 }
