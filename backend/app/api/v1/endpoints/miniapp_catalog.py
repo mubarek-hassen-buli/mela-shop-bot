@@ -42,8 +42,8 @@ async def get_public_brands(
 
 @router.get("/products", response_model=PaginatedResponse[ProductResponse])
 async def get_public_products(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(12, ge=1, le=50),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=12, ge=1, le=50),
     search: Optional[str] = None,
     category_id: Optional[int] = None,
     brand_id: Optional[int] = None,
@@ -52,18 +52,15 @@ async def get_public_products(
     sort_by: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(Product).where(Product.is_active.is_(True)).options(
-        selectinload(Product.category),
-        selectinload(Product.variants),
-        selectinload(Product.images)
-    )
+    # Base filter conditions
+    conditions = [Product.is_active.is_(True)]
 
     if search:
-        stmt = stmt.where(Product.title.ilike(f"%{search}%") | Product.description.ilike(f"%{search}%"))
+        conditions.append(Product.title.ilike(f"%{search}%") | Product.description.ilike(f"%{search}%"))
     if category_id:
-        stmt = stmt.where(Product.category_id == category_id)
+        conditions.append(Product.category_id == category_id)
     if brand_id:
-        stmt = stmt.where(Product.brand_id == brand_id)
+        conditions.append(Product.brand_id == brand_id)
 
     # Price range filtering via EXISTS subquery
     if min_price is not None or max_price is not None:
@@ -72,11 +69,20 @@ async def get_public_products(
             v_conditions.append(ProductVariant.price >= min_price)
         if max_price is not None:
             v_conditions.append(ProductVariant.price <= max_price)
-        stmt = stmt.where(select(ProductVariant.id).where(*v_conditions).exists())
+        conditions.append(select(ProductVariant.id).where(*v_conditions).exists())
 
     # Count total matching records
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = (await db.execute(count_stmt)).scalar_one()
+    count_stmt = select(func.count(Product.id)).where(*conditions)
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    # Build main query with all eager loaded relationships to avoid lazy load MissingGreenlet
+    stmt = select(Product).where(*conditions).options(
+        selectinload(Product.category),
+        selectinload(Product.brand),
+        selectinload(Product.variants).selectinload(ProductVariant.color),
+        selectinload(Product.images),
+        selectinload(Product.specifications)
+    )
 
     # Price sorting via correlated group_by subquery
     if sort_by == "price_asc":
