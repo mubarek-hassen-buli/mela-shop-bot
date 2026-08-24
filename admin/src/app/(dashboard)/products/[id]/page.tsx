@@ -142,16 +142,17 @@ export default function EditProductPage() {
         .replace(/(^-|-$)+/g, '') || product?.slug || `product-${productId}`;
 
     // Collect all uploaded images
-    const imagesPayload: any[] = [];
-    if (image1) imagesPayload.push({ media_id: image1.id, is_primary: true, display_order: 1, url: image1.url, cloudinary_public_id: image1.cloudinary_public_id });
-    if (image2) imagesPayload.push({ media_id: image2.id, is_primary: false, display_order: 2, url: image2.url, cloudinary_public_id: image2.cloudinary_public_id });
-    if (image3) imagesPayload.push({ media_id: image3.id, is_primary: false, display_order: 3, url: image3.url, cloudinary_public_id: image3.cloudinary_public_id });
+    const imagesPayload = [
+      ...(image1 ? [{ cloudinary_public_id: image1.cloudinary_public_id, url: image1.url, is_primary: true, display_order: 1 }] : []),
+      ...(image2 ? [{ cloudinary_public_id: image2.cloudinary_public_id, url: image2.url, is_primary: false, display_order: 2 }] : []),
+      ...(image3 ? [{ cloudinary_public_id: image3.cloudinary_public_id, url: image3.url, is_primary: false, display_order: 3 }] : []),
+    ];
 
     // Collect features
     const cleanedFeatures = features.map((f) => f.trim()).filter(Boolean);
     const specsPayload = cleanedFeatures.map((f, idx) => ({
-      key: `Feature ${idx + 1}`,
-      value: f,
+      spec_key: `Feature ${idx + 1}`,
+      spec_value: f,
     }));
 
     updateMutation.mutate({
@@ -164,10 +165,9 @@ export default function EditProductPage() {
       specifications: specsPayload,
       variants: [
         {
-          id: product?.variants?.[0]?.id,
           sku: product?.variants?.[0]?.sku || `SKU-${productId}`,
           price: priceNum,
-          stock: product?.variants?.[0]?.stock ?? 50,
+          stock_quantity: product?.variants?.[0]?.stock_quantity ?? 50,
           is_active: true,
         },
       ],
