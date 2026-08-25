@@ -1,10 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cartApi } from '../services/cartApi';
 import { useCartStore } from '../store/cartStore';
-import { CartSummary } from '../types/cart';
+import { CartSummary, CartItem } from '../types/cart';
+import { Product, ProductVariant } from '../types/product';
+
+export interface AddToCartParams {
+  product?: Product;
+  variant?: ProductVariant;
+  variantId: number;
+  quantity: number;
+}
 
 export function useCart() {
   const queryClient = useQueryClient();
+  const cartFromStore = useCartStore((state) => state.cart);
   const setCart = useCartStore((state) => state.setCart);
 
   const cartQuery = useQuery({
@@ -14,24 +23,69 @@ export function useCart() {
       setCart(data);
       return data;
     },
-    staleTime: 1000 * 60 * 2, // 2 minutes fresh cache
+    initialData: cartFromStore || undefined,
+    staleTime: 1000 * 60 * 5, // 5 minutes fresh cache
   });
 
   const addToCartMutation = useMutation({
-    mutationFn: ({ variantId, quantity }: { variantId: number; quantity: number }) =>
+    mutationFn: ({ variantId, quantity }: AddToCartParams) =>
       cartApi.addToCart(variantId, quantity),
-    onMutate: async ({ quantity }) => {
+    onMutate: async ({ product, variant, variantId, quantity }) => {
       await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previousCart = queryClient.getQueryData<CartSummary>(['cart']);
-
-      if (previousCart) {
-        const optimisticCart: CartSummary = {
-          ...previousCart,
-          total_items: previousCart.total_items + quantity,
+      const previousCart =
+        queryClient.getQueryData<CartSummary>(['cart']) ||
+        useCartStore.getState().cart || {
+          items: [],
+          total_items: 0,
+          subtotal: 0,
         };
-        queryClient.setQueryData(['cart'], optimisticCart);
-        setCart(optimisticCart);
+
+      const existingIndex = previousCart.items.findIndex(
+        (item) => item.variant_id === variantId
+      );
+
+      const activeVariant =
+        variant || product?.variants?.find((v) => v.id === variantId) || null;
+      const unitPrice = Number(activeVariant?.price || 0);
+
+      const updatedItems = [...previousCart.items];
+
+      if (existingIndex >= 0) {
+        const existing = updatedItems[existingIndex];
+        const newQty = existing.quantity + quantity;
+        updatedItems[existingIndex] = {
+          ...existing,
+          quantity: newQty,
+          item_subtotal: unitPrice * newQty,
+        };
+      } else {
+        const optimisticItem: CartItem = {
+          id: -Math.floor(Math.random() * 1000000),
+          user_id: 0,
+          variant_id: variantId,
+          quantity: quantity,
+          updated_at: new Date().toISOString(),
+          variant: activeVariant,
+          product: product || null,
+          item_subtotal: unitPrice * quantity,
+        };
+        updatedItems.unshift(optimisticItem);
       }
+
+      const totalItems = updatedItems.reduce((acc, i) => acc + i.quantity, 0);
+      const subtotal = updatedItems.reduce(
+        (acc, i) => acc + Number(i.item_subtotal),
+        0
+      );
+
+      const optimisticCart: CartSummary = {
+        items: updatedItems,
+        total_items: totalItems,
+        subtotal,
+      };
+
+      queryClient.setQueryData(['cart'], optimisticCart);
+      setCart(optimisticCart);
 
       return { previousCart };
     },
@@ -45,9 +99,6 @@ export function useCart() {
       setCart(data);
       queryClient.setQueryData(['cart'], data);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
   });
 
   const updateQuantityMutation = useMutation({
@@ -55,10 +106,16 @@ export function useCart() {
       cartApi.updateQuantity(itemId, quantity),
     onMutate: async ({ itemId, quantity }) => {
       await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previousCart = queryClient.getQueryData<CartSummary>(['cart']);
+      const previousCart =
+        queryClient.getQueryData<CartSummary>(['cart']) ||
+        useCartStore.getState().cart || {
+          items: [],
+          total_items: 0,
+          subtotal: 0,
+        };
 
-      if (previousCart) {
-        const updatedItems = previousCart.items.map((item) => {
+      const updatedItems = previousCart.items
+        .map((item) => {
           if (item.id === itemId) {
             const price = Number(item.variant?.price || 0);
             return {
@@ -68,20 +125,23 @@ export function useCart() {
             };
           }
           return item;
-        });
+        })
+        .filter((item) => item.quantity > 0);
 
-        const totalItems = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
-        const subtotal = updatedItems.reduce((acc, item) => acc + Number(item.item_subtotal), 0);
+      const totalItems = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
+      const subtotal = updatedItems.reduce(
+        (acc, item) => acc + Number(item.item_subtotal),
+        0
+      );
 
-        const optimisticCart: CartSummary = {
-          items: updatedItems,
-          total_items: totalItems,
-          subtotal,
-        };
+      const optimisticCart: CartSummary = {
+        items: updatedItems,
+        total_items: totalItems,
+        subtotal,
+      };
 
-        queryClient.setQueryData(['cart'], optimisticCart);
-        setCart(optimisticCart);
-      }
+      queryClient.setQueryData(['cart'], optimisticCart);
+      setCart(optimisticCart);
 
       return { previousCart };
     },
@@ -94,9 +154,6 @@ export function useCart() {
     onSuccess: (data) => {
       setCart(data);
       queryClient.setQueryData(['cart'], data);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
   });
 
@@ -104,22 +161,29 @@ export function useCart() {
     mutationFn: (itemId: number) => cartApi.removeItem(itemId),
     onMutate: async (itemId) => {
       await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previousCart = queryClient.getQueryData<CartSummary>(['cart']);
-
-      if (previousCart) {
-        const updatedItems = previousCart.items.filter((item) => item.id !== itemId);
-        const totalItems = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
-        const subtotal = updatedItems.reduce((acc, item) => acc + Number(item.item_subtotal), 0);
-
-        const optimisticCart: CartSummary = {
-          items: updatedItems,
-          total_items: totalItems,
-          subtotal,
+      const previousCart =
+        queryClient.getQueryData<CartSummary>(['cart']) ||
+        useCartStore.getState().cart || {
+          items: [],
+          total_items: 0,
+          subtotal: 0,
         };
 
-        queryClient.setQueryData(['cart'], optimisticCart);
-        setCart(optimisticCart);
-      }
+      const updatedItems = previousCart.items.filter((item) => item.id !== itemId);
+      const totalItems = updatedItems.reduce((acc, item) => acc + item.quantity, 0);
+      const subtotal = updatedItems.reduce(
+        (acc, item) => acc + Number(item.item_subtotal),
+        0
+      );
+
+      const optimisticCart: CartSummary = {
+        items: updatedItems,
+        total_items: totalItems,
+        subtotal,
+      };
+
+      queryClient.setQueryData(['cart'], optimisticCart);
+      setCart(optimisticCart);
 
       return { previousCart };
     },
@@ -133,14 +197,13 @@ export function useCart() {
       setCart(data);
       queryClient.setQueryData(['cart'], data);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
   });
 
+  const cart = cartQuery.data || cartFromStore;
+
   return {
-    cart: cartQuery.data,
-    isLoading: cartQuery.isLoading,
+    cart,
+    isLoading: cartQuery.isLoading && !cart,
     isError: cartQuery.isError,
     addToCart: addToCartMutation.mutateAsync,
     isAdding: addToCartMutation.isPending,

@@ -33,7 +33,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
     e.stopPropagation();
     if (!activeVariant) return;
     triggerHaptic('medium');
-    addToCart({ variantId: activeVariant.id, quantity: 1 }).catch((err) => {
+    addToCart({
+      product,
+      variant: activeVariant,
+      variantId: activeVariant.id,
+      quantity: 1,
+    }).catch((err) => {
       console.error('Failed to quick add to cart:', err);
     });
   };

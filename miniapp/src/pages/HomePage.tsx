@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, RotateCcw } from 'lucide-react';
 import { SearchBar } from '../components/catalog/SearchBar';
 import { CategoryList } from '../components/catalog/CategoryList';
@@ -18,11 +18,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
-  // Smooth 250ms search debounce for instant typing response
+  // Smooth 200ms search debounce for instant typing response
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(search.trim());
-    }, 250);
+    }, 200);
     return () => clearTimeout(handler);
   }, [search]);
 
@@ -37,15 +37,84 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
   const minPriceNum = filters.minPrice ? parseFloat(filters.minPrice) : undefined;
   const maxPriceNum = filters.maxPrice ? parseFloat(filters.maxPrice) : undefined;
 
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
-    search: debouncedSearch || undefined,
-    category_id: selectedCategoryId || undefined,
-    min_price: isNaN(minPriceNum!) ? undefined : minPriceNum,
-    max_price: isNaN(maxPriceNum!) ? undefined : maxPriceNum,
-    sort_by: filters.sortBy || undefined,
-  });
+  // 1. Fetch base catalog (cached in-memory for instant 0ms client-side filtering)
+  const { data: baseCatalogData, isLoading: isCatalogLoading } = useProducts({ page_size: 50 });
 
-  const products = productsData?.items || [];
+  // 2. Fetch specific server query in background
+  const hasSpecificFilter = Boolean(
+    selectedCategoryId || debouncedSearch || filters.sortBy || filters.minPrice || filters.maxPrice
+  );
+
+  const { data: filteredProductsData } = useProducts(
+    hasSpecificFilter
+      ? {
+          search: debouncedSearch || undefined,
+          category_id: selectedCategoryId || undefined,
+          min_price: isNaN(minPriceNum!) ? undefined : minPriceNum,
+          max_price: isNaN(maxPriceNum!) ? undefined : maxPriceNum,
+          sort_by: filters.sortBy || undefined,
+        }
+      : undefined
+  );
+
+  // 3. Instant 0ms Optimistic Filtered Products Computation
+  const products = useMemo(() => {
+    if (filteredProductsData?.items && hasSpecificFilter) {
+      return filteredProductsData.items;
+    }
+
+    const allItems = baseCatalogData?.items || [];
+    let list = [...allItems];
+
+    if (selectedCategoryId) {
+      list = list.filter((p) => p.category_id === selectedCategoryId);
+    }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          (p.description && p.description.toLowerCase().includes(q))
+      );
+    }
+    if (minPriceNum !== undefined && !isNaN(minPriceNum)) {
+      list = list.filter((p) => {
+        const prices = p.variants?.map((v) => Number(v.price)) || [];
+        return prices.some((pr) => pr >= minPriceNum);
+      });
+    }
+    if (maxPriceNum !== undefined && !isNaN(maxPriceNum)) {
+      list = list.filter((p) => {
+        const prices = p.variants?.map((v) => Number(v.price)) || [];
+        return prices.some((pr) => pr <= maxPriceNum);
+      });
+    }
+    if (filters.sortBy === 'price_asc') {
+      list.sort((a, b) => {
+        const pA = Math.min(...(a.variants?.map((v) => Number(v.price)) || [0]));
+        const pB = Math.min(...(b.variants?.map((v) => Number(v.price)) || [0]));
+        return pA - pB;
+      });
+    } else if (filters.sortBy === 'price_desc') {
+      list.sort((a, b) => {
+        const pA = Math.max(...(a.variants?.map((v) => Number(v.price)) || [0]));
+        const pB = Math.max(...(b.variants?.map((v) => Number(v.price)) || [0]));
+        return pB - pA;
+      });
+    }
+
+    return list;
+  }, [
+    baseCatalogData,
+    filteredProductsData,
+    hasSpecificFilter,
+    selectedCategoryId,
+    debouncedSearch,
+    minPriceNum,
+    maxPriceNum,
+    filters.sortBy,
+  ]);
+
   const hasActiveFilters =
     Boolean(filters.sortBy) || Boolean(filters.minPrice) || Boolean(filters.maxPrice);
 
@@ -75,7 +144,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
       />
 
       {/* Product Cards Grid / Professional Empty State */}
-      {isLoadingProducts && !productsData ? (
+      {isCatalogLoading && !baseCatalogData ? (
         <div className="py-24 flex justify-center">
           <LoadingSpinner />
         </div>

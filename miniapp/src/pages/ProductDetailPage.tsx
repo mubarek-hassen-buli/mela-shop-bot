@@ -30,7 +30,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ product, o
     setAddedSuccess(true);
     setTimeout(() => setAddedSuccess(false), 2200);
 
-    addToCart({ variantId: selectedVariant.id, quantity: 1 }).catch((e) => {
+    addToCart({
+      product,
+      variant: selectedVariant,
+      variantId: selectedVariant.id,
+      quantity: 1,
+    }).catch((e) => {
       console.error('Failed to sync add to cart with backend:', e);
       setAddedSuccess(false);
     });
