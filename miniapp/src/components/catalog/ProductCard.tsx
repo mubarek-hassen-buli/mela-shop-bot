@@ -11,7 +11,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) => {
   const { isWishlisted, toggleWishlist } = useWishlistStore();
-  const { addToCart, isAdding } = useCart();
+  const { addToCart } = useCart();
   const { triggerHaptic } = useTelegram();
 
   const primaryImage =
@@ -21,21 +21,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
   const price = activeVariant ? Number(activeVariant.price) : 0;
   const wishlisted = isWishlisted(product.id);
 
+  // Instant 0ms Wishlist Toggle
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     triggerHaptic('light');
     toggleWishlist(product);
   };
 
-  const handleQuickAddToCart = async (e: React.MouseEvent) => {
+  // Instant 0ms Quick Add to Cart
+  const handleQuickAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeVariant) return;
     triggerHaptic('medium');
-    try {
-      await addToCart({ variantId: activeVariant.id, quantity: 1 });
-    } catch (err) {
-      console.error('Failed to add to cart:', err);
-    }
+    addToCart({ variantId: activeVariant.id, quantity: 1 }).catch((err) => {
+      console.error('Failed to quick add to cart:', err);
+    });
   };
 
   const formattedPrice = `${price.toLocaleString()} Birr`;
@@ -67,7 +67,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
         <button
           type="button"
           onClick={handleFavoriteClick}
-          className="w-[34px] h-[34px] rounded-full ios-glass-btn flex items-center justify-center text-white"
+          className="w-[34px] h-[34px] rounded-full ios-glass-btn flex items-center justify-center text-white active:scale-90 transition-transform"
           title="Add to Wishlist"
         >
           <svg
@@ -100,8 +100,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
           <button
             type="button"
             onClick={handleQuickAddToCart}
-            disabled={isAdding || (activeVariant && activeVariant.stock_quantity <= 0)}
-            className="w-7 h-7 rounded-xl ios-glass-btn flex items-center justify-center text-white flex-shrink-0 disabled:opacity-40"
+            disabled={activeVariant && activeVariant.stock_quantity <= 0}
+            className="w-7 h-7 rounded-xl ios-glass-btn flex items-center justify-center text-white flex-shrink-0 active:scale-90 transition-transform disabled:opacity-40"
             title="Quick add to cart"
           >
             <svg

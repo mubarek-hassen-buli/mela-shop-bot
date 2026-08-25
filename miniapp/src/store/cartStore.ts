@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { CartSummary } from '../types/cart';
 
 interface CartState {
@@ -7,8 +8,15 @@ interface CartState {
   clearCart: () => void;
 }
 
-export const useCartStore = create<CartState>((set) => ({
-  cart: null,
-  setCart: (cart) => set({ cart }),
-  clearCart: () => set({ cart: null }),
-}));
+export const useCartStore = create<CartState>()(
+  persist(
+    (set) => ({
+      cart: null,
+      setCart: (cart) => set({ cart }),
+      clearCart: () => set({ cart: null }),
+    }),
+    {
+      name: 'mela_cart_storage',
+    }
+  )
+);

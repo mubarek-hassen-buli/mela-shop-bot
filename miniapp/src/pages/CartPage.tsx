@@ -11,7 +11,7 @@ interface CartPageProps {
 export const CartPage: React.FC<CartPageProps> = ({ onBackToShop }) => {
   const { cart, isLoading, updateQuantity, removeItem } = useCart();
 
-  if (isLoading) {
+  if (isLoading && !cart) {
     return (
       <div className="py-24 flex justify-center">
         <LoadingSpinner />

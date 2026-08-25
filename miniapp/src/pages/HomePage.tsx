@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, RotateCcw } from 'lucide-react';
 import { SearchBar } from '../components/catalog/SearchBar';
 import { CategoryList } from '../components/catalog/CategoryList';
@@ -14,8 +14,17 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  // Smooth 250ms search debounce for instant typing response
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const [filters, setFilters] = useState<FilterState>({
     sortBy: null,
@@ -29,7 +38,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
   const maxPriceNum = filters.maxPrice ? parseFloat(filters.maxPrice) : undefined;
 
   const { data: productsData, isLoading: isLoadingProducts } = useProducts({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     category_id: selectedCategoryId || undefined,
     min_price: isNaN(minPriceNum!) ? undefined : minPriceNum,
     max_price: isNaN(maxPriceNum!) ? undefined : maxPriceNum,
@@ -42,6 +51,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectProduct }) => {
 
   const handleResetAll = () => {
     setSearch('');
+    setDebouncedSearch('');
     setSelectedCategoryId(null);
     setFilters({ sortBy: null, minPrice: '', maxPrice: '' });
   };
