@@ -1,5 +1,5 @@
-from aiogram import Router, html
-from aiogram.filters import CommandStart
+from aiogram import Router, html, F
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 
 from bot.keyboards import get_shop_webapp_keyboard, get_main_reply_keyboard
@@ -8,12 +8,15 @@ router = Router()
 
 
 @router.message(CommandStart())
+@router.message(Command("start"))
+@router.message(F.text.casefold().in_({"start", "/start", "restart", "menu", "open shop", "open mela shop"}))
 async def command_start_handler(message: Message) -> None:
     """
-    Handles the /start command. Displays welcome message and Mini App launcher buttons.
+    Handles the /start command, start button clicks, and text commands.
+    Displays welcome message and Mini App launcher buttons.
     """
     user_first_name = message.from_user.first_name if message.from_user else "Customer"
-    
+
     welcome_text = (
         f"👋 Welcome to <b>Mela Shop</b>, {html.bold(user_first_name)}!\n\n"
         f"Browse our full catalog, explore product specifications, select sizes & colors, "
@@ -26,7 +29,7 @@ async def command_start_handler(message: Message) -> None:
         reply_markup=get_shop_webapp_keyboard(),
         parse_mode="HTML"
     )
-    
+
     # Send persistent reply menu keyboard
     await message.answer(
         text="👇 Quick Navigation Menu:",

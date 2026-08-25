@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
@@ -19,12 +20,15 @@ logger = logging.getLogger("mela_bot")
 
 
 async def set_bot_commands(bot: Bot) -> None:
-    commands = [
-        BotCommand(command="start", description="👋 Start bot & open shop"),
-        BotCommand(command="shop", description="🛍️ Launch Mini App"),
-        BotCommand(command="help", description="ℹ️ Usage instructions & support"),
-    ]
-    await bot.set_my_commands(commands)
+    try:
+        commands = [
+            BotCommand(command="start", description="👋 Start bot & open shop"),
+            BotCommand(command="shop", description="🛍️ Launch Mini App"),
+            BotCommand(command="help", description="ℹ️ Usage instructions & support"),
+        ]
+        await bot.set_my_commands(commands)
+    except Exception as e:
+        logger.warning(f"Could not register bot commands menu: {e}")
 
 
 async def handle_health(request: web.Request) -> web.Response:
@@ -45,11 +49,30 @@ async def start_web_server() -> None:
     logger.info(f"Health check HTTP server listening on port {port}")
 
 
+async def keep_alive_task() -> None:
+    """Pings the public Render health URL every 10 minutes to prevent Render free-tier sleep."""
+    render_external_url = os.environ.get("RENDER_EXTERNAL_URL") or "https://mela-shop-bot-1.onrender.com"
+    health_url = f"{render_external_url.rstrip('/')}/health"
+
+    await asyncio.sleep(120)  # Wait 2 minutes after startup
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(health_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    logger.info(f"Render keep-alive ping: {resp.status}")
+        except Exception as e:
+            logger.debug(f"Keep-alive ping notice: {e}")
+        await asyncio.sleep(600)  # Repeat every 10 minutes
+
+
 async def main() -> None:
     logger.info("Starting Mela Shop Telegram Bot...")
 
     # Start healthcheck server for Render port detection
     await start_web_server()
+
+    # Launch background keep-alive task
+    asyncio.create_task(keep_alive_task())
 
     # Initialize bot with HTML parse mode
     bot = Bot(
